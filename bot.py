@@ -26,6 +26,7 @@ load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
 CHANNEL_ID = int(os.getenv("CHANNEL_ID", 0))
 NOTIFY_ROLE_ID = int(os.getenv("NOTIFY_ROLE_ID", 0))
+INFORMAL_ROLE_ID = 1508601822124834848  # Role ID za @informal tag
 
 if not TOKEN:
     print("❌ Missing DISCORD_TOKEN in .env file")
@@ -469,13 +470,14 @@ def notification_ping() -> str:
 
 
 def build_notification_text(event_label: str, roster_label: str, *, late: bool = False) -> str:
+    informal_mention = f"<@&{INFORMAL_ROLE_ID}>"
     if late:
         return (
-            f"{notification_ping()}⚠️ **KASNO:** Bot nije bio upaljen u **{roster_label}**. "
+            f"{notification_ping()}{informal_mention} ⚠️ **KASNO:** Bot nije bio upaljen u **{roster_label}**. "
             f"Roster za event u **{event_label}** — prijavite se ispod!"
         )
     return (
-        f"{notification_ping()}📋 **Roster je otvoren!** Event u **{event_label}** "
+        f"{notification_ping()}{informal_mention} 📋 **Roster je otvoren!** Event u **{event_label}** "
         f"(za {ROSTER_MINUTES_BEFORE} min). Prijavite se ispod!"
     )
 
