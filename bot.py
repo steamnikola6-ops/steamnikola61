@@ -170,9 +170,10 @@ class RosterView(ui.View):
                 await interaction.response.defer(ephemeral=True)
                 async with self.lock:
                     if self.locked:
-                        msg = await interaction.followup.send("🔒 Roster je trenutno zaključan.")
-                        await asyncio.sleep(MESSAGE_DELETE_DELAY)
-                        await msg.delete()
+                        try:
+                            await interaction.followup.send("🔒 Roster je trenutno zaključan.", ephemeral=True)
+                        except discord.NotFound:
+                            print("⚠️ Poruka nije pronađena (već obrisana)")
                         return
 
                     user = interaction.user
@@ -180,9 +181,10 @@ class RosterView(ui.View):
                     in_subs = any(s and s["id"] == user.id for s in self.subs)
 
                     if in_slots or in_subs:
-                        msg = await interaction.followup.send("❌ Već si prijavljen.")
-                        await asyncio.sleep(MESSAGE_DELETE_DELAY)
-                        await msg.delete()
+                        try:
+                            await interaction.followup.send("❌ Već si prijavljen.", ephemeral=True)
+                        except discord.NotFound:
+                            pass
                         return
 
                     user_data = {"id": user.id, "name": user.display_name}
@@ -193,9 +195,13 @@ class RosterView(ui.View):
                         self.record_user_participation(user.id, user.display_name)
                         self.save_data()
                         await self.message.edit(embed=self.build_embed(), view=self)
-                        msg = await interaction.followup.send(f"✅ Prijavljen si u roster na poziciji **{idx + 1}**.")
-                        await asyncio.sleep(MESSAGE_DELETE_DELAY)
-                        await msg.delete()
+                        try:
+                            await interaction.followup.send(
+                                f"✅ Prijavljen si u roster na poziciji **{idx + 1}**.",
+                                ephemeral=True
+                            )
+                        except discord.NotFound:
+                            pass
                         print(f"✓ {user.display_name} se prijavio na poziciju {idx + 1}")
                         return
 
@@ -205,21 +211,27 @@ class RosterView(ui.View):
                         self.record_user_participation(user.id, user.display_name)
                         self.save_data()
                         await self.message.edit(embed=self.build_embed(), view=self)
-                        msg = await interaction.followup.send(f"⚠️ Glavni roster je pun, prijavljen si kao sub na poziciji **{idx + 1}**.")
-                        await asyncio.sleep(MESSAGE_DELETE_DELAY)
-                        await msg.delete()
+                        try:
+                            await interaction.followup.send(
+                                f"⚠️ Glavni roster je pun, prijavljen si kao sub na poziciji **{idx + 1}**.",
+                                ephemeral=True
+                            )
+                        except discord.NotFound:
+                            pass
                         print(f"✓ {user.display_name} se prijavio kao sub na poziciju {idx + 1}")
                         return
 
-                    msg = await interaction.followup.send("❌ Nema slobodnih mesta ni u subs rosteru.")
-                    await asyncio.sleep(MESSAGE_DELETE_DELAY)
-                    await msg.delete()
+                    try:
+                        await interaction.followup.send(
+                            "❌ Nema slobodnih mesta ni u subs rosteru.",
+                            ephemeral=True
+                        )
+                    except discord.NotFound:
+                        pass
             except Exception as e:
                 print(f"❌ Greška u signup_cb: {e}")
                 try:
-                    msg = await interaction.followup.send(f"❌ Greška pri prijavi: {str(e)}")
-                    await asyncio.sleep(MESSAGE_DELETE_DELAY)
-                    await msg.delete()
+                    await interaction.followup.send(f"❌ Greška pri prijavi: {str(e)}", ephemeral=True)
                 except Exception:
                     pass
 
@@ -237,12 +249,16 @@ class RosterView(ui.View):
                             self.slots[slot_idx] = promoted
                         self.save_data()
                         await self.message.edit(embed=self.build_embed(), view=self)
-                        if promoted:
-                            msg = await interaction.followup.send(f"✅ Odjavio si se, a {promoted['name']} je prebačen iz subs roster-a.")
-                        else:
-                            msg = await interaction.followup.send("✅ Odjavio si se iz glavnog rostera.")
-                        await asyncio.sleep(MESSAGE_DELETE_DELAY)
-                        await msg.delete()
+                        try:
+                            if promoted:
+                                await interaction.followup.send(
+                                    f"✅ Odjavio si se, a {promoted['name']} je prebačen iz subs roster-a.",
+                                    ephemeral=True
+                                )
+                            else:
+                                await interaction.followup.send("✅ Odjavio si se iz glavnog rostera.", ephemeral=True)
+                        except discord.NotFound:
+                            pass
                         return
 
                     sub_idx = next((i for i, s in enumerate(self.subs) if s and s["id"] == user.id), None)
@@ -250,20 +266,23 @@ class RosterView(ui.View):
                         self.subs[sub_idx] = None
                         self.save_data()
                         await self.message.edit(embed=self.build_embed(), view=self)
-                        msg = await interaction.followup.send("✅ Odjavio si se iz subs roster-a.")
-                        await asyncio.sleep(MESSAGE_DELETE_DELAY)
-                        await msg.delete()
+                        try:
+                            await interaction.followup.send("✅ Odjavio si se iz subs roster-a.", ephemeral=True)
+                        except discord.NotFound:
+                            pass
                         return
 
-                    msg = await interaction.followup.send("❌ Nisi prijavljen ni u roster ni u subs roster.")
-                    await asyncio.sleep(MESSAGE_DELETE_DELAY)
-                    await msg.delete()
+                    try:
+                        await interaction.followup.send(
+                            "❌ Nisi prijavljen ni u roster ni u subs roster.",
+                            ephemeral=True
+                        )
+                    except discord.NotFound:
+                        pass
             except Exception as e:
                 print(f"❌ Greška u unregister_cb: {e}")
                 try:
-                    msg = await interaction.followup.send("Došlo je do greške pri odjavi.")
-                    await asyncio.sleep(MESSAGE_DELETE_DELAY)
-                    await msg.delete()
+                    await interaction.followup.send("Došlo je do greške pri odjavi.", ephemeral=True)
                 except Exception:
                     pass
 
@@ -772,17 +791,26 @@ async def roster(ctx: commands.Context):
         if existing:
             ok = await publish_roster(ctx.channel, manual=True)
             if ok:
-                msg = await ctx.send("✅ Roster je osvežen (ista poruka, nema duplikata).", delete_after=8)
+                try:
+                    msg = await ctx.send("✅ Roster je osvežen (ista poruka, nema duplikata).", delete_after=8)
+                except discord.NotFound:
+                    pass
             return
 
         ok = await publish_roster(ctx.channel, manual=True)
         if not ok:
-            msg = await ctx.send("⚠️ Sačekaj malo pa probaj ponovo.", delete_after=8)
+            try:
+                msg = await ctx.send("⚠️ Sačekaj malo pa probaj ponovo.", delete_after=8)
+            except discord.NotFound:
+                pass
             return
         print(f"✓ Roster kreiran komandom u #{ctx.channel.name}")
     except Exception as e:
         print(f"❌ Greška u roster komandi: {e}")
-        msg = await ctx.send("❌ Došlo je do greške pri pravljenju rostera.")
+        try:
+            msg = await ctx.send("❌ Došlo je do greške pri pravljenju rostera.")
+        except discord.NotFound:
+            pass
 
 
 @bot.command()
@@ -794,17 +822,26 @@ async def prebaci(ctx: commands.Context, member: discord.Member):
     try:
         view = bot.current_view
         if view is None:
-            msg = await ctx.send("❌ Nema aktivnog rostera za upravljanje.")
+            try:
+                msg = await ctx.send("❌ Nema aktivnog rostera za upravljanje.")
+            except discord.NotFound:
+                pass
             return
 
         async with view.lock:
             sub_idx = next((i for i, s in enumerate(view.subs) if s and s["id"] == member.id), None)
             if sub_idx is None:
-                msg = await ctx.send(f"❌ {member.mention} nije u subs roster-u.")
+                try:
+                    msg = await ctx.send(f"❌ {member.mention} nije u subs roster-u.")
+                except discord.NotFound:
+                    pass
                 return
 
             if None not in view.slots:
-                msg = await ctx.send("❌ Glavni roster je pun, prvo oslobodi mesto.")
+                try:
+                    msg = await ctx.send("❌ Glavni roster je pun, prvo oslobodi mesto.")
+                except discord.NotFound:
+                    pass
                 return
 
             slot_idx = view.slots.index(None)
@@ -814,10 +851,16 @@ async def prebaci(ctx: commands.Context, member: discord.Member):
             view.save_data()
             if view.message:
                 await view.message.edit(embed=view.build_embed(), view=view)
-            msg = await ctx.send(f"✅ {member.mention} je prebačen iz subs roster-a u glavni roster.")
+            try:
+                msg = await ctx.send(f"✅ {member.mention} je prebačen iz subs roster-a u glavni roster.")
+            except discord.NotFound:
+                pass
     except Exception as e:
         print(f"❌ Greška u prebaci komandi: {e}")
-        msg = await ctx.send("❌ Došlo je do greške pri premještanju korisnika.")
+        try:
+            msg = await ctx.send("❌ Došlo je do greške pri premještanju korisnika.")
+        except discord.NotFound:
+            pass
 
 
 @bot.command()
@@ -829,7 +872,10 @@ async def makni(ctx: commands.Context, member: discord.Member):
     try:
         view = bot.current_view
         if view is None:
-            msg = await ctx.send("❌ Nema aktivnog rostera za upravljanje.")
+            try:
+                msg = await ctx.send("❌ Nema aktivnog rostera za upravljanje.")
+            except discord.NotFound:
+                pass
             return
 
         async with view.lock:
@@ -842,10 +888,13 @@ async def makni(ctx: commands.Context, member: discord.Member):
                 view.save_data()
                 if view.message:
                     await view.message.edit(embed=view.build_embed(), view=view)
-                if promoted:
-                    msg = await ctx.send(f"✅ {member.mention} je uklonjen, {promoted['name']} je promovisan iz subs roster-a.")
-                else:
-                    msg = await ctx.send(f"✅ {member.mention} je uklonjen iz glavnog rostera.")
+                try:
+                    if promoted:
+                        msg = await ctx.send(f"✅ {member.mention} je uklonjen, {promoted['name']} je promovisan iz subs roster-a.")
+                    else:
+                        msg = await ctx.send(f"✅ {member.mention} je uklonjen iz glavnog rostera.")
+                except discord.NotFound:
+                    pass
                 return
 
             sub_idx = next((i for i, s in enumerate(view.subs) if s and s["id"] == member.id), None)
@@ -854,13 +903,22 @@ async def makni(ctx: commands.Context, member: discord.Member):
                 view.save_data()
                 if view.message:
                     await view.message.edit(embed=view.build_embed(), view=view)
-                msg = await ctx.send(f"✅ {member.mention} je uklonjen iz subs roster-a.")
+                try:
+                    msg = await ctx.send(f"✅ {member.mention} je uklonjen iz subs roster-a.")
+                except discord.NotFound:
+                    pass
                 return
 
-            msg = await ctx.send(f"❌ {member.mention} nije ni u glavnom rosteru ni u subs rosteru.")
+            try:
+                msg = await ctx.send(f"❌ {member.mention} nije ni u glavnom rosteru ni u subs rosteru.")
+            except discord.NotFound:
+                pass
     except Exception as e:
         print(f"❌ Greška u makni komandi: {e}")
-        msg = await ctx.send("❌ Došlo je do greške pri uklanjanju korisnika.")
+        try:
+            msg = await ctx.send("❌ Došlo je do greške pri uklanjanju korisnika.")
+        except discord.NotFound:
+            pass
 
 
 @bot.command()
@@ -872,7 +930,10 @@ async def profile(ctx: commands.Context, member: discord.Member = None):
         
         view = bot.current_view
         if view is None:
-            await ctx.send("❌ Nema aktivnog rostera.")
+            try:
+                await ctx.send("❌ Nema aktivnog rostera.")
+            except discord.NotFound:
+                pass
             return
 
         user_id_str = str(member.id)
@@ -937,11 +998,17 @@ async def profile(ctx: commands.Context, member: discord.Member = None):
         
         embed.set_footer(text=f"Korisnik prikuplja iskustvo kroz učešće u eventima!")
         
-        await ctx.send(embed=embed)
+        try:
+            await ctx.send(embed=embed)
+        except discord.NotFound:
+            pass
         
     except Exception as e:
         print(f"❌ Greška u profile komandi: {e}")
-        await ctx.send("❌ Greška pri prikazivanju profila.")
+        try:
+            await ctx.send("❌ Greška pri prikazivanju profila.")
+        except discord.NotFound:
+            pass
 
 
 async def main():
